@@ -1,0 +1,46 @@
+.*.swp
+.*.swo
+*~
+*.orig
+*.rej
+.nfs*
+*.o
+__pycache__
+.vscode/*
+
+# Cython-generated files
+/python/astra/*.cpp
+/python/astra/config.pxi
+
+# Build files
+/python/dist/*
+/python/astra_toolbox.egg-info/*
+/python/build/
+/python/astra.lib
+
+/build/conda/pkgs/*
+/build/pypi/pkgs/*
+/build/containers/podman/sw/*
+
+/build/linux/.libs/*
+/build/linux/Makefile
+/build/linux/aclocal.m4
+/build/linux/autom4te.cache/*
+/build/linux/config.guess
+/build/linux/config.log
+/build/linux/config.status
+/build/linux/config.sub
+/build/linux/configure
+/build/linux/cuda/*
+/build/linux/install-sh
+/build/linux/libastra.la
+/build/linux/libastra.pc
+/build/linux/libtool
+/build/linux/ltmain.sh
+/build/linux/src/*
+/build/linux/matlab/*
+/build/linux/python/*
+
+# MSVC build output
+/build/msvc/bin/
+/build/msvc/release/

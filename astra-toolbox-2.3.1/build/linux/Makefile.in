@@ -1,0 +1,605 @@
+install_type=@INSTALL_TYPE@
+
+cuda=@HAVECUDA@
+matlab=@HAVEMATLAB@
+python=@HAVEPYTHON@
+boostutf=@HAVEBOOSTUTF@
+macos=@IS_MACOS@
+
+MATLAB_ROOT=@MATLAB_ROOT@
+octave=@HAVEOCTAVE@
+
+MKDIR=mkdir -p
+CXX=@CXX@
+LD=@CXX@
+SHELL=@SHELL@
+INSTALL_SH=$(SHELL) $(srcdir)/install-sh
+
+TARGETS=libastra.la
+
+ifeq ($(matlab),yes)
+TARGETS+=mex
+endif
+
+ifeq ($(python),yes)
+TARGETS+=py
+endif
+
+ifeq ($(octave),yes)
+TARGETS+=oct
+endif
+
+all: $(TARGETS)
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+datarootdir=@datarootdir@
+includedir=@includedir@
+libdir=@libdir@
+
+srcdir=@srcdir@
+abs_top_builddir=@abs_top_builddir@
+
+VPATH=@VPATH_SRCDIR@/../..
+
+CPPFLAGS=@SAVED_CPPFLAGS@
+CXXFLAGS=@SAVED_CXXFLAGS@
+NVCCFLAGS=@SAVED_NVCCFLAGS@
+LDFLAGS=@SAVED_LDFLAGS@
+LIBS=@SAVED_LIBS@
+
+CXXFLAGS+=-g -O3 -Wall --std=c++17
+LDFLAGS+=-g
+
+CXXFLAGS+=@CXXFLAGS_OS@
+LDFLAGS+=@LDFLAGS_OS@
+
+BOOSTUTF_LIBS=@LIBS_BOOSTUTF@
+
+ifeq ($(cuda),yes)
+CPPFLAGS  += @CPPFLAGS_CUDA@ -DASTRA_CUDA
+NVCCFLAGS += @NVCCFLAGS_EXTRA@ @CPPFLAGS_CUDA@ -I$(srcdir)/../../include -DASTRA_CUDA --std c++17
+LDFLAGS   += @LDFLAGS_CUDA@
+LIBS      += -lcudart -lcufft
+NVCC       = @NVCC@
+endif
+
+ifeq ($(matlab),yes)
+# TODO: Do we also want -fopenmp for octave?
+CPPFLAGS+=-I$(MATLAB_ROOT)/extern/include -DMATLAB_MEX_FILE @CPPFLAGS_MATLAB@
+ifeq ($(macos),no)
+CXXFLAGS+=-fopenmp
+LDFLAGS+=-fopenmp
+endif
+endif
+
+# MODLDFLAGS are the base LDFLAGS for matlab, octave, python modules
+MODLDFLAGS=$(LDFLAGS) -L$(abs_top_builddir)/.libs
+ifeq ($(install_type),module)
+MODLDFLAGS+=-Wl,-rpath,'\$$ORIGIN'
+endif
+
+ifeq ($(python),yes)
+PYTHON      = @PYTHON@
+PYINCDIR := $(shell $(PYTHON) -c 'import sysconfig; print(sysconfig.get_path("include"))')
+PYLIBDIR := $(shell $(PYTHON) -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')
+PYLIBVER = `basename $(PYINCDIR)`
+CPPFLAGS += -DASTRA_PYTHON -I$(PYINCDIR)
+PYCPPFLAGS  := $(CPPFLAGS)
+PYCPPFLAGS  += -I../include -I../lib/include
+PYCXXFLAGS  := $(CXXFLAGS)
+
+# copy the current MODLDFLAGS to PYLDFLAGS, and then add flags for matlab/octave
+PYLDFLAGS := $(MODLDFLAGS)
+MODLDFLAGS += -L$(PYLIBDIR)
+
+MODPYLIBS=-l$(PYLIBVER)
+
+PYBUILDERENV=CXX="${CXX}" CC="${CXX}" CPPFLAGS="${PYCPPFLAGS}" LDFLAGS='${PYLDFLAGS}' CXXFLAGS="${PYCXXFLAGS}" CFLAGS="${PYCXXFLAGS}"
+PYBUILDERFLAGS=--astra_build_config_dir $(abs_top_builddir)/python/config --astra_build_cython_dir $(abs_top_builddir)/python/cython
+PYBUILDER_BUILD_FLAGS=--build-base=$(abs_top_builddir)/python/build
+
+PYTHON_WHEEL_PLATFORM = @PYTHON_WHEEL_PLATFORM@
+endif
+
+# This is below where PYCPPFLAGS copies CPPFLAGS.  The python code is built
+# from a different directory, so these relative includes would be wrong.
+CPPFLAGS+=-I$(srcdir)/../../include -I$(srcdir)/../../lib/include
+# Also enable -Wshadow except for the python extensions, since certain cython
+# versions generate code with much shadowing.
+CXXFLAGS += -Wshadow
+
+ifeq ($(matlab),yes)
+MEXFLAGS  = @MEXFLAGS@ -cxx
+MEXLDFLAGS=\$$LDFLAGS $(MODLDFLAGS)
+MEXLIBS   = -lut
+MEXSUFFIX = @MEXSUFFIX@
+MEX       = @MEX@
+
+ifeq ($(cuda),yes)
+MEXFLAGS += -DASTRA_CUDA
+endif
+
+endif
+
+
+ifeq ($(octave),yes)
+OCTLDFLAGS:=$(MODLDFLAGS)
+CPPFLAGS += @OCTAVE_CPPFLAGS@
+ifeq ($(cuda),yes)
+OCTFLAGS=-DASTRA_CUDA
+else
+OCTFLAGS=
+endif
+
+endif
+
+
+DEPDIR=.deps
+
+BASE_OBJECTS=\
+	src/Algorithm.lo \
+	src/ReconstructionAlgorithm2D.lo \
+	src/ReconstructionAlgorithm3D.lo \
+	src/ArtAlgorithm.lo \
+	src/AstraObjectFactory.lo \
+	src/AstraObjectManager.lo \
+	src/BackProjectionAlgorithm.lo \
+	src/CglsAlgorithm.lo \
+	src/CompositeGeometryManager.lo \
+	src/ConeProjectionGeometry3D.lo \
+	src/ConeVecProjectionGeometry3D.lo \
+	src/Config.lo \
+	src/Data3D.lo \
+	src/DataProjector.lo \
+	src/DataProjectorPolicies.lo \
+	src/FanFlatBeamLineKernelProjector2D.lo \
+	src/FanFlatBeamStripKernelProjector2D.lo \
+	src/FanFlatProjectionGeometry2D.lo \
+	src/FanFlatVecProjectionGeometry2D.lo \
+	src/Features.lo \
+	src/FilteredBackProjectionAlgorithm.lo \
+	src/Filters.lo \
+	src/Float32Data.lo \
+	src/Float32Data2D.lo \
+	src/Float32ProjectionData2D.lo \
+	src/Float32VolumeData2D.lo \
+	src/ForwardProjectionAlgorithm.lo \
+	src/Fourier.lo \
+	src/GeometryUtil2D.lo \
+	src/GeometryUtil3D.lo \
+	src/Globals.lo \
+	src/Logging.lo \
+	src/ParallelBeamBlobKernelProjector2D.lo \
+	src/ParallelBeamDistanceDrivenProjector2D.lo \
+	src/ParallelBeamLinearKernelProjector2D.lo \
+	src/ParallelBeamLineKernelProjector2D.lo \
+	src/ParallelBeamStripKernelProjector2D.lo \
+	src/ParallelProjectionGeometry2D.lo \
+	src/ParallelVecProjectionGeometry2D.lo \
+	src/ParallelProjectionGeometry3D.lo \
+	src/ParallelVecProjectionGeometry3D.lo \
+	src/PlatformDepSystemCode.lo \
+	src/PluginAlgorithmFactory.lo \
+	src/ProjectionGeometry2D.lo \
+	src/ProjectionGeometry2DFactory.lo \
+	src/ProjectionGeometry3D.lo \
+	src/ProjectionGeometry3DFactory.lo \
+	src/Projector2D.lo \
+	src/Projector3D.lo \
+	src/SartAlgorithm.lo \
+	src/SheppLogan.lo \
+	src/SirtAlgorithm.lo \
+	src/SparseMatrixProjectionGeometry2D.lo \
+	src/SparseMatrixProjector2D.lo \
+	src/SparseMatrix.lo \
+	src/Utilities.lo \
+	src/VolumeGeometry2D.lo \
+	src/VolumeGeometry3D.lo \
+	src/XMLConfig.lo \
+	src/XMLDocument.lo \
+	src/XMLNode.lo
+
+CUDA_CXX_OBJECTS=\
+	src/CudaProjector2D.lo \
+	src/CudaProjector3D.lo \
+	src/CudaReconstructionAlgorithm2D.lo \
+	src/CudaBackProjectionAlgorithm.lo \
+	src/CudaDartMaskAlgorithm.lo \
+	src/CudaDartMaskAlgorithm3D.lo \
+	src/CudaDataOperationAlgorithm.lo \
+	src/CudaRoiSelectAlgorithm.lo \
+	src/CudaDartSmoothingAlgorithm.lo \
+	src/CudaDartSmoothingAlgorithm3D.lo \
+	src/CudaFilteredBackProjectionAlgorithm.lo \
+	src/CudaForwardProjectionAlgorithm.lo \
+	src/CudaSartAlgorithm.lo \
+	src/CudaSirtAlgorithm.lo \
+	src/CudaCglsAlgorithm.lo \
+	src/CudaCglsAlgorithm3D.lo \
+	src/CudaEMAlgorithm.lo \
+	src/CudaFDKAlgorithm3D.lo \
+	src/CudaSirtAlgorithm3D.lo \
+	src/CudaBackProjectionAlgorithm3D.lo \
+	src/CudaForwardProjectionAlgorithm3D.lo
+
+CUDA_OBJECTS=\
+	cuda/2d/algo.lo \
+	cuda/2d/par_fp.lo \
+	cuda/2d/par_bp.lo \
+	cuda/2d/fan_fp.lo \
+	cuda/2d/fan_bp.lo \
+	cuda/2d/fbp.lo \
+	cuda/2d/sirt.lo \
+	cuda/2d/sart.lo \
+	cuda/2d/cgls.lo \
+	cuda/2d/em.lo \
+	cuda/2d/astra.lo \
+	cuda/2d/util.lo \
+	cuda/2d/arith.lo \
+	cuda/2d/fft.lo \
+	cuda/2d/darthelper.lo \
+	cuda/3d/darthelper3d.lo \
+	cuda/3d/algo3d.lo \
+	cuda/3d/cgls3d.lo \
+	cuda/3d/cone_fp.lo \
+	cuda/3d/cone_bp.lo \
+	cuda/3d/fdk.lo \
+	cuda/3d/par3d_fp.lo \
+	cuda/3d/par3d_bp.lo \
+	cuda/3d/sirt3d.lo \
+	cuda/3d/astra3d.lo \
+	cuda/3d/util3d.lo \
+	cuda/3d/arith3d.lo \
+	cuda/3d/mem3d.lo
+
+ALL_OBJECTS=$(BASE_OBJECTS)
+ifeq ($(cuda),yes)
+ALL_OBJECTS+=$(CUDA_CXX_OBJECTS) $(CUDA_OBJECTS)
+endif
+
+TEST_OBJECTS=\
+	tests/main.o \
+	tests/test_AstraObjectManager.o \
+	tests/test_Float32Data2D.o \
+	tests/test_VolumeGeometry2D.o \
+	tests/test_ParallelProjectionGeometry2D.o \
+	tests/test_FanFlatProjectionGeometry2D.o \
+	tests/test_Float32VolumeData2D.o \
+	tests/test_Float32ProjectionData2D.o \
+	tests/test_Fourier.o \
+	tests/test_XMLDocument.o
+
+MATLAB_CXX_OBJECTS=\
+	matlab/mex/mexHelpFunctions.o \
+	matlab/mex/mexCopyDataHelpFunctions.o \
+	matlab/mex/mexInitFunctions.o \
+	matlab/mex/mexDataManagerHelpFunctions.o
+
+MATLAB_MEX=\
+	matlab/mex/astra_mex_algorithm_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_data2d_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_matrix_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_projector_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_projector3d_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_log_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_data3d_c.$(MEXSUFFIX) \
+	matlab/mex/astra_mex_direct_c.$(MEXSUFFIX)
+
+OCTAVE_CXX_OBJECTS=\
+	matlab/mex/octave_support.o
+
+OCTAVE_MEX=\
+	matlab/mex/astra_mex_algorithm_c.mex \
+	matlab/mex/astra_mex_data2d_c.mex \
+	matlab/mex/astra_mex_c.mex \
+	matlab/mex/astra_mex_matrix_c.mex \
+	matlab/mex/astra_mex_projector_c.mex \
+	matlab/mex/astra_mex_projector3d_c.mex \
+	matlab/mex/astra_mex_log_c.mex \
+	matlab/mex/astra_mex_data3d_c.mex \
+	matlab/mex/astra_mex_direct_c.mex
+
+ifeq ($(python),yes)
+MATLAB_MEX+=matlab/mex/astra_mex_plugin_c.$(MEXSUFFIX)
+OCTAVE_MEX+=matlab/mex/astra_mex_plugin_c.mex
+endif
+
+
+OBJECT_DIRS = src/ tests/ cuda/2d/ cuda/3d/ matlab/mex/ ./
+DEPDIRS = $(addsuffix $(DEPDIR),$(OBJECT_DIRS))
+-include $(wildcard $(addsuffix /*.d,$(DEPDIRS)))
+LIBDIRS = $(addsuffix .libs,./ src/ cuda/2d/ cuda/3d/)
+
+SONAME=$(shell . ${abs_top_builddir}/libastra.la; echo $$dlname)
+
+ifeq ($(matlab),yes)
+mex: $(MATLAB_MEX)
+
+%.$(MEXSUFFIX): %.o $(MATLAB_CXX_OBJECTS) libastra.la
+	$(MEX) LDFLAGS="$(MEXLDFLAGS)" $(MEXFLAGS) $(LIBS) $(MEXLIBS) -lastra -output $* $*.o $(MATLAB_CXX_OBJECTS)
+ifeq ($(install_type),module)
+ifeq ($(macos),yes)
+	@# tell macOS dynamic loader to look in mex directory for libastra.0.dylib
+	@# CHECKME: some versions of otool return a two-line output for otool -DX?
+	@# (xcode 8.2.1 / macos 10.11.6 ?)
+	install_name_tool -change `otool -DX .libs/$(SONAME) | tail -n 1` @loader_path/$(SONAME) $@
+endif
+endif
+
+ifeq ($(python),yes)
+matlab/mex/astra_mex_plugin_c.$(MEXSUFFIX): matlab/mex/astra_mex_plugin_c.o $(MATLAB_CXX_OBJECTS) libastra.la
+	$(MEX) LDFLAGS="$(MEXLDFLAGS)" $(MEXFLAGS) $(LIBS) $(MEXLIBS) $(MODPYLIBS) -lastra -output matlab/mex/astra_mex_plugin_c $< $(MATLAB_CXX_OBJECTS)
+endif
+endif
+
+ifeq ($(python),yes)
+py: libastra.la
+	$(MKDIR) python/build
+	$(MKDIR) python/config
+# Note: setting CC to CXX is intentional. Python uses CC for compilation even if input is C++.
+	cd $(srcdir)/../../python; $(PYBUILDERENV) \
+	$(PYTHON) builder.py $(PYBUILDERFLAGS) \
+	build $(PYBUILDER_BUILD_FLAGS) \
+	$(patsubst %,add_extra_lib --file=%,$(PYPKGDATA))
+endif
+
+
+ifeq ($(octave),yes)
+oct: $(OCTAVE_MEX)
+
+%.mex: %.o $(MATLAB_CXX_OBJECTS) $(OCTAVE_CXX_OBJECTS) libastra.la
+	mkoctfile --mex $(OCTFLAGS) $(OCTLDFLAGS) $(LIBS) -lastra --output $* $*.o $(MATLAB_CXX_OBJECTS) $(OCTAVE_CXX_OBJECTS)
+
+ifeq ($(python),yes)
+matlab/mex/astra_mex_plugin_c.mex: matlab/mex/astra_mex_plugin_c.o $(MATLAB_CXX_OBJECTS) $(OCTAVE_CXX_OBJECTS) libastra.la
+	mkoctfile --mex $(OCTFLAGS) $(OCTLDFLAGS) $(LIBS) $(MODPYLIBS) -lastra --output matlab/mex/astra_mex_plugin_c $< $(MATLAB_CXX_OBJECTS) $(OCTAVE_CXX_OBJECTS)
+endif
+endif
+
+libastra.la: $(ALL_OBJECTS)
+	./libtool --mode=link --tag=CXX $(LD) -rpath $(libdir) -o $@ $(LDFLAGS) $(LIBS) $+
+
+%.o: %.cpp
+	$(MKDIR) $(*D)/$(DEPDIR)
+	$(CXX) -Wp,-MMD,"$(*D)/$(DEPDIR)/$(*F).d",-MQ,"$@",-MP $(CXXFLAGS) -fPIC -DPIC $(CPPFLAGS) -c $(<) -o $*.o
+
+%.lo: %.cpp
+	$(MKDIR) $(*D)/$(DEPDIR)
+	./libtool --mode=compile --tag=CXX $(CXX) -Wp,-MMD,"$(*D)/$(DEPDIR)/$(*F).d",-MQ,"$@",-MP $(CXXFLAGS) $(CPPFLAGS) -c $(<) -o $*.o
+
+gen_static_libs := `./libtool --features | grep -q 'disable static' && echo no || echo yes`
+
+ifeq ($(cuda),yes)
+%.lo: %.cu
+	@# Behave like libtool: compile both a PIC and a non-PIC object file
+	@$(MKDIR) $(*D)
+	@$(MKDIR) $(*D)/.libs
+	@$(MKDIR) $(*D)/$(DEPDIR)
+	$(NVCC) $(NVCCFLAGS) -c $(<) -Xcompiler -fPIC -DPIC -o $(*D)/.libs/$(*F).o
+ifeq ($(gen_static_libs),yes)
+	@$(NVCC) $(NVCCFLAGS) -c $(<) -o $*.o >/dev/null 2>&1
+endif
+	@# Generate a .d file, and change the target name in it from .o to .lo
+	@# CUDA 5.5's nvcc doesn't have the -MT option we would like to use.
+	@$(NVCC) $(NVCCFLAGS) -M $(<) -odir $(*D) -o $(*D)/$(DEPDIR)/$(*F).d2
+	@sed '1s/\.o :/.lo :/' < $(*D)/$(DEPDIR)/$(*F).d2 > $(*D)/$(DEPDIR)/$(*F).d
+	@rm -f $(*D)/$(DEPDIR)/$(*F).d2
+	@# Generate empty targets for all dependencies listed in the .d file.
+	@# This mimics gcc's -MP option.
+	@for x in `cat $(*D)/$(DEPDIR)/$(*F).d`; do if test a$$x != a: -a a$$x != a\\; then (echo; echo "$$x:") >> $(*D)/$(DEPDIR)/$(*F).d; fi; done
+	@# Generate a fake libtool .lo file
+	@echo "# $*.lo - a libtool object file" > $*.lo
+	@echo "# Generated by" `./libtool --version | head -n 1` >> $*.lo
+	@echo "#" >> $*.lo
+	@echo "# Please DO NOT delete this file!" >> $*.lo
+	@echo "# It is necessary for linking the library." >> $*.lo
+	@echo >> $*.lo
+	@echo "# Name of the PIC object." >> $*.lo
+	@echo "pic_object='.libs/$(*F).o'" >> $*.lo
+	@echo >> $*.lo
+	@echo "# Name of the non-PIC object." >> $*.lo
+ifeq ($(gen_static_libs),yes)
+	@echo "non_pic_object='$(*F).o'" >> $*.lo
+else
+	@echo "non_pic_object=none" >> $*.lo
+endif
+	@# Remove generated .linkinfo file
+	@rm -f $(*F).linkinfo
+endif
+
+ifeq ($(boostutf),yes)
+test.bin: $(ALL_OBJECTS) $(TEST_OBJECTS)
+	./libtool --mode=link $(LD) -o $@ $(LDFLAGS) $+ $(LIBS) $(BOOSTUTF_LIBS)
+
+test: test.bin
+	./test.bin
+else
+test:
+	@echo "Tests have been disabled by configure"
+endif
+
+clean:
+	rm -f $(MATLAB_MEX) libastra.la
+	rm -f $(addsuffix /*.lo,$(OBJECT_DIRS))
+	rm -f $(addsuffix /*.o,$(OBJECT_DIRS))
+	rm -f $(addsuffix /*.d,$(DEPDIRS))
+	rm -f $(addsuffix /*,$(LIBDIRS))
+	rm -f $(TEST_OBJECTS) test.bin
+	rm -fr python/
+
+distclean: clean
+	rm -f $(srcdir)/config.guess $(srcdir)/config.sub $(srcdir)/ltmain.sh libtool $(srcdir)/install-sh
+	rm -f config.log config.status
+	rm -f $(srcdir)/aclocal.m4
+	rm -rf $(srcdir)/autom4te.cache
+	rm -f $(srcdir)/configure Makefile
+
+install-libraries: libastra.la
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(libdir)
+	./libtool --mode=install $(INSTALL_SH) -m 644 libastra.la $(DESTDIR)$(libdir)
+	./libtool --mode=finish $(DESTDIR)$(libdir)
+
+
+# ------------------------
+# INSTALLATION
+# ------------------------
+
+ifeq ($(install_type),prefix)
+# libraries into @libdir@, python into site-packages, mex into @datadir@
+install: install-libraries install-matlab install-python-site-packages install-octave
+
+PYPKGDATA=
+MATLABBASE=@datadir@/astra/matlab
+OCTAVEBASE=@datadir@/astra/octave
+endif
+
+ifeq ($(install_type),dir)
+# everything into @prefix@
+install: install-libraries install-matlab install-python install-octave
+
+PYPKGDATA=
+MATLABBASE=@prefix@/matlab
+OCTAVEBASE=@prefix@/octave
+PYTHONBASE=@prefix@/python
+endif
+
+ifeq ($(install_type),module)
+# python into site-packages, mex into @datadir@
+# library copied into python/mex directories
+# modules built with rpath=$ORIGIN
+install: install-matlab install-python-site-packages install-octave
+
+PYPKGDATA=$(abs_top_builddir)/.libs/$(SONAME)
+MATLABBASE=@prefix@/matlab
+OCTAVEBASE=@prefix@/octave
+
+install-matlab-so: libastra.la
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)/mex
+	$(INSTALL_SH) -m 755 $(abs_top_builddir)/.libs/$(SONAME) $(DESTDIR)$(MATLABBASE)/mex
+install-octave-so: libastra.la
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(OCTAVEBASE)/mex
+	$(INSTALL_SH) -m 755 $(abs_top_builddir)/.libs/$(SONAME) $(DESTDIR)$(OCTAVEBASE)/mex
+else
+install-matlab-so:
+install-octave-so:
+endif
+
+
+
+ifeq ($(python),yes)
+install-python: py
+	# Note: setting CC to CXX is intentional. Python uses CC for compilation even if input is C++.
+	cd $(srcdir)/../../python; $(PYBUILDERENV) \
+	$(PYTHON) builder.py $(PYBUILDERFLAGS) \
+	set_dist_dir --dist-dir=$(abs_top_builddir)/python/dist \
+	build $(PYBUILDER_BUILD_FLAGS) \
+	egg_info --egg-base=$(abs_top_builddir)/python \
+	$(patsubst %,add_extra_lib --file=%,$(PYPKGDATA)) \
+	install $(patsubst %,--root=%,$(DESTDIR)) --install-base=@prefix@/python --install-headers=@prefix@/python --install-purelib=@prefix@/python --install-platlib=@prefix@/python --install-scripts=@prefix@/python --install-data=@prefix@/python --old-and-unmanageable --no-compile
+# TODO: docs
+
+install-python-site-packages: py
+# Note: setting CC to CXX is intentional. Python uses CC for compilation even if input is C++.
+	cd $(srcdir)/../../python; $(PYBUILDERENV) \
+	$(PYTHON) builder.py $(PYBUILDERFLAGS) \
+	set_dist_dir --dist-dir=$(abs_top_builddir)/python/dist \
+	build $(PYBUILDER_BUILD_FLAGS) \
+	egg_info --egg-base=$(abs_top_builddir)/python \
+	$(patsubst %,add_extra_lib --file=%,$(PYPKGDATA)) \
+	install $(patsubst %,--root=% --single-version-externally-managed,$(DESTDIR))
+python-wheel: py
+# Note: setting CC to CXX is intentional. Python uses CC for compilation even if input is C++.
+	cd $(srcdir)/../../python; $(PYBUILDERENV) \
+	$(PYTHON) builder.py $(PYBUILDERFLAGS) --astra_cuda_dependencies \
+	set_dist_dir --dist-dir=$(abs_top_builddir)/python/dist \
+	build $(PYBUILDER_BUILD_FLAGS) \
+	egg_info --egg-base=$(abs_top_builddir)/python \
+	$(patsubst %,add_extra_lib --file=%,$(PYPKGDATA)) \
+	bdist_wheel $(patsubst %,--plat-name %,$(PYTHON_WHEEL_PLATFORM))
+else
+install-python-site-packages:
+install-python:
+endif
+
+ifeq ($(matlab),yes)
+install-matlab: $(MATLAB_MEX) install-matlab-so
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)/mex
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)/tools
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)/algorithms
+	$(INSTALL_SH) -m 755 $(MATLAB_MEX) $(DESTDIR)$(MATLABBASE)/mex
+	$(INSTALL_SH) -m 644 $(srcdir)/../../matlab/tools/*.m $(DESTDIR)$(MATLABBASE)/tools
+
+	for D in DART DART/tools DART/examples plot_geom plot_geom/private plot_geom/+draw plot_geom/+draw/private plot_geom/+parseargs plot_geom/+stlTools; do \
+		$(INSTALL_SH) -m 755 -d $(DESTDIR)$(MATLABBASE)/algorithms/$$D; \
+		$(INSTALL_SH) -m 644 $(srcdir)/../../matlab/algorithms/$$D/*.m $(DESTDIR)$(MATLABBASE)/algorithms/$$D; \
+	done
+
+# TODO: docs
+else
+install-matlab:
+endif
+
+
+ifeq ($(octave),yes)
+install-octave: $(OCTAVE_MEX) install-octave-so
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(OCTAVEBASE)
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(OCTAVEBASE)/mex
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(OCTAVEBASE)/tools
+	$(INSTALL_SH) -m 755 $(OCTAVE_MEX) $(DESTDIR)$(OCTAVEBASE)/mex
+	$(INSTALL_SH) -m 644 $(srcdir)/../../matlab/tools/*.m $(DESTDIR)$(OCTAVEBASE)/tools
+# TODO: docs
+else
+install-octave:
+endif
+
+ifeq ($(install_type),module)
+
+install-dev:
+	@echo "install-dev is not compatible with the 'module' install type."
+	@echo "Please use 'prefix' or 'dir' instead."
+
+install-headers:
+	@echo "install-headers is not compatible with the 'module' install type."
+	@echo "Please use 'prefix' or 'dir' instead."
+
+else
+
+install-headers:
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(includedir)
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(includedir)/astra
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(includedir)/astra/cuda
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(includedir)/astra/cuda/2d
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(includedir)/astra/cuda/3d
+	$(INSTALL_SH) -m 644 $(srcdir)/../../include/astra/*.h $(DESTDIR)$(includedir)/astra
+	$(INSTALL_SH) -m 644 $(srcdir)/../../include/astra/*.inl $(DESTDIR)$(includedir)/astra
+	$(INSTALL_SH) -m 644 $(srcdir)/../../include/astra/cuda/2d/*.h $(DESTDIR)$(includedir)/astra/cuda/2d
+	$(INSTALL_SH) -m 644 $(srcdir)/../../include/astra/cuda/3d/*.h $(DESTDIR)$(includedir)/astra/cuda/3d
+
+install-dev: install-libraries install-headers libastra.pc
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(libdir)
+	$(INSTALL_SH) -m 755 -d $(DESTDIR)$(libdir)/pkgconfig/
+	$(INSTALL_SH) -m 644 libastra.pc $(DESTDIR)$(libdir)/pkgconfig/
+endif
+
+
+Makefile libastra.pc: %: $(srcdir)/%.in config.status
+	CONFIG_HEADERS= CONFIG_LINKS= CONFIG_FILES=$@ $(SHELL) ./config.status
+
+config.status: $(srcdir)/configure
+	@echo "configure script has changed. Re-running it with last parameters"
+	$(SHELL) ./config.status --recheck
+
+$(srcdir)/configure: $(srcdir)/configure.ac
+	@echo "configure.ac has been changed. Regenerating configure script"
+	cd $(srcdir) && $(SHELL) ./autogen.sh
+
+.PHONY: all mex test clean distclean install install-libraries py install-python-site-packages install-python install-matlab install-octave install-matlab-so install-octave-so install-headers install-dev python-wheel
+
+# don't remove intermediate files:
+.SECONDARY:
+
+# disable all implicit built-in rules
+.SUFFIXES:

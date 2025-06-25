@@ -1,0 +1,142 @@
+-----------------------------------------------------------------------
+This file is part of the ASTRA Toolbox
+
+Copyright: 2010-2024, imec Vision Lab, University of Antwerp
+           2014-2024, CWI, Amsterdam
+           https://visielab.uantwerpen.be/ and https://www.cwi.nl/
+License: Open Source under GPLv3
+Contact: astra@astra-toolbox.com
+Website: https://www.astra-toolbox.com/
+-----------------------------------------------------------------------
+2.3.1 (2025-04-16)
+ * fix GPULink missing in astra.data3d module
+ * fix crash in Matlab when calling astra_mex_direct
+ * fix missing accelerated virtual GPU code for CUDA architectures > 8.6 in Linux packages
+
+2.3.0 (2025-02-22)
+ * add support for zero-copy linking of GPU/CPU arrays from Python libraries supporting the DLPack
+   standard, including PyTorch, TensorFlow, CuPy and JAX
+ * add support for using different filter types in FDK_CUDA.
+   The filter configuration for FDK_CUDA now matches that for FBP/FBP_CUDA.
+ * add conda packages for Python 3.13, CUDA 12.6, 12.8, and NumPy 2
+ * add automatic asynchronous execution to `astra.experimental` functions in Python
+ * add automatic splitting of FDK execution along angular dimension, allowing for larger maximum
+   number of projections
+ * add error reporting in `astra.algorithm.run` function
+ * add an extensive Python unit test suite
+ * fix incorrect results with GPUs with more than 48GB of memory
+ * fix multiple minor bugs
+ * require C++17, raising minimum system requirements to CUDA 11
+ * deprecate Python 3.7 conda packages
+ * remove boost and six dependencies
+
+2.2.0 (2024-07-12)
+  * update Windows conda packages
+  * add support for python 3.12, cuda 12.5, and numpy 2.0
+
+2.1.3 (2023-10-04)
+  * astra conda packages for cuda 11.6 and above now depend on nvidia's
+    modular cuda packages instead of on the monolithic cudatoolkit package.
+    This improves compatibility of our conda packages with pytorch.
+  * speed up FDK, especially when using multiple GPUs
+  * improve error reporting
+
+2.1.2 (2022-09-09)
+  * fix set_gpu_index with Python 3.10
+  * fix set_gpu_index initializing GPU #0 before switching to the desired GPU
+
+2.1.1 (2022-06-30)
+  * fix memory leak in cone beam FP
+
+2.1.0 (2022-01-31)
+  * fix potential hang in CUDA FFT, and speed it up (for FBP_CUDA and FDK_CUDA)
+  * fix GPULink with rows not padded to multiple of 32 pixels
+  * fix output value scaling for short-scan FDK
+  * improve CUDA error logging
+  * fix compatibility issues with the conda-forge and nvidia conda channels
+
+2.0.0 (2021-10-27)
+  * fix inconsistent scaling of output value depending on detector pixel size
+      See the 2020-01-17 news entry on astra-toolbox.com for more details
+  * add experimental interfaces to FP3D, BP3D, FDK to make ASTRA calls
+      by 3rd party toolboxes more efficient and flexible
+  * improve compatibility with modern Python, CUDA, Linux and Windows versions
+
+1.9.0 (2018-2019)
+  * add 2D parallel_vec geometry
+      The old ExtraDetectorOffset option has been removed. Please use
+      parallel_vec to achieve this effect now
+  * fix inconsistent rotation direction in CPU fan beam code
+  * fix scaling of output values for FDK and fan beam FBP in some geometries
+
+1.8.3 (2017-11-06)
+  * fix geometry memory leak in 3D FP/BP
+  * fix FDK short scan weighting
+  * add preliminary support for building on macOS
+  * add experimental support for using externally managed GPU memory from python
+    (see samples/python/s021_pygpu.py)
+  * our Linux conda python packages now have variants depending on the
+    cudatoolkit version
+  * add basic post-install tests test_CUDA/test_noCUDA (see README)
+
+1.8 (2016-12-05)
+  * the Windows binary release now requires CUDA 8.0
+  * major changes to the way 'make install' works when building from source
+  * removed GPU memory size restrictions for FDK
+  * added multi-GPU support to 3D FP/BP/FDK
+  * added relaxation factor option to SIRT, SART
+  * fixed certain projections parallel to XZ or YZ planes
+  * fixed accumulating multiple raylengths in SART
+  * for matlab OpTomo, make output type match input type
+  * for python OpTomo, add FP/BP functions with optional 'out' argument
+  * fixed problems with non-US locales
+
+1.7.1beta (2015-12-23)
+  * NB: This release has a beta tag as it contains two new
+    big experimental features.
+  * fix crash with certain 2D CUDA FP calls
+
+1.7beta (2015-12-04)
+  * NB: This release has a beta tag as it contains two new
+    big experimental features.
+  * experimental MPI distributed computing support in Python
+  * experimental support in Python for FP and BP of objects
+    composited from multiple 3d data objects, at possibly different resolutions.
+    This also removes some restrictions on data size for 3D GPU FP and BP.
+  * support for Python algorithm plugins
+  * removed restrictions on volume geometries:
+        The volume no longer has to be centered.
+        Voxels still have to be cubes, but no longer 1x1x1.
+  * build fixes for newer platforms
+  * various consistency and bug fixes
+
+1.6 (2015-05-29)
+  * integrate and improve python interface
+  * integrate opSpot-based opTomo operator
+  * build fixes for newer platforms
+  * various consistency and bug fixes
+
+1.5 (2015-01-30)
+  * add support for fan beam FBP
+  * remove limits on number of angles in GPU code
+    (They are still limited by available memory, however)
+  * update the included version of the DART algorithm
+  * build fixes for newer platforms
+  * various consistency and bug fixes
+
+1.4 (2014-04-07)
+  * various consistency and bug fixes
+  * add global astra_set_gpu_index
+
+1.3 (2013-07-02)
+  * various consistency and bug fixes
+  * add a version of the DART algorithm (written by Wim van Aarle)
+
+1.2 (2013-03-01)
+  * various consistency and bug fixes
+
+1.1 (2012-10-24)
+  * add support for matlab single arrays in mex interface
+
+1.0 (2012-08-22)
+  * first public release
